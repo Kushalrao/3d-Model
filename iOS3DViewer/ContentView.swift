@@ -4,6 +4,7 @@ struct ContentView: View {
     @State private var selectedModel: String = "Dream On.glb"
     @State private var showingFilePicker = false
     @State private var modelExists = false
+    @State private var fieldOfView: Double = 60.0
     
     var body: some View {
         NavigationView {
@@ -55,11 +56,9 @@ struct ContentView: View {
                     }
                 }
                 
-                Spacer()
-                
                 // Direct link to view the Dream On.glb model (only if file exists)
                 if modelExists {
-                    NavigationLink(destination: ModelViewer(modelName: selectedModel)) {
+                    NavigationLink(destination: ModelViewer(modelName: selectedModel, fieldOfView: fieldOfView)) {
                         Text("View Dream On Model")
                             .font(.headline)
                             .foregroundColor(.white)

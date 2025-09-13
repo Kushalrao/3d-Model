@@ -3,17 +3,24 @@ import SceneKit
 
 struct ModelViewer: View {
     let modelName: String
+    @State private var fieldOfView: Double
     @StateObject private var modelLoader = ModelLoader()
     @State private var sceneView: SCNView?
     @State private var modelNode: SCNNode?
     @State private var cameraNode: SCNNode?
     @State private var showingControls = true
     
+    init(modelName: String, fieldOfView: Double) {
+        self.modelName = modelName
+        self._fieldOfView = State(initialValue: fieldOfView)
+    }
+    
     var body: some View {
         ZStack {
             // 3D Scene View
             SceneViewWrapper(
                 modelName: modelName,
+                fieldOfView: fieldOfView,
                 modelLoader: modelLoader,
                 sceneView: $sceneView,
                 modelNode: $modelNode,
@@ -92,6 +99,47 @@ struct ModelViewer: View {
                 .background(Color.black.opacity(0.8))
                 .cornerRadius(12)
             }
+            
+            // Field of View Slider - Fixed overlay at bottom (LAST ELEMENT)
+            VStack {
+                Spacer()
+                
+                VStack(spacing: 8) {
+                    HStack {
+                        Text("Field of View:")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        Spacer()
+                        Text("\(Int(fieldOfView))°")
+                            .font(.headline)
+                            .foregroundColor(.blue)
+                    }
+                    
+                    Slider(value: Binding(
+                        get: { fieldOfView },
+                        set: { newValue in
+                            fieldOfView = newValue
+                            cameraNode?.camera?.fieldOfView = CGFloat(newValue)
+                        }
+                    ), in: 10...360, step: 1)
+                        .accentColor(.blue)
+                    
+                    HStack {
+                        Text("10°")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                        Spacer()
+                        Text("360°")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                    }
+                }
+                .padding()
+                .background(Color.red.opacity(0.8))
+                .cornerRadius(12)
+                .padding(.horizontal)
+                .padding(.bottom, 20)
+            }
         }
         .navigationTitle(modelName)
         .navigationBarTitleDisplayMode(.inline)
@@ -111,6 +159,7 @@ struct ModelViewer: View {
 
 struct SceneViewWrapper: UIViewRepresentable {
     let modelName: String
+    let fieldOfView: Double
     @ObservedObject var modelLoader: ModelLoader
     @Binding var sceneView: SCNView?
     @Binding var modelNode: SCNNode?
@@ -126,6 +175,7 @@ struct SceneViewWrapper: UIViewRepresentable {
         
         // Set up camera
         let camera = SCNCamera()
+        camera.fieldOfView = CGFloat(fieldOfView)
         cameraNode = SCNNode()
         cameraNode?.camera = camera
         cameraNode?.position = SCNVector3(0, 0, 5)
@@ -142,7 +192,8 @@ struct SceneViewWrapper: UIViewRepresentable {
     }
     
     func updateUIView(_ uiView: SCNView, context: Context) {
-        // Update if needed
+        // Update camera field of view when it changes
+        cameraNode?.camera?.fieldOfView = CGFloat(fieldOfView)
     }
     
     private func loadModel(in view: SCNView) {
@@ -345,5 +396,5 @@ struct ControlPanel: View {
 }
 
 #Preview {
-    ModelViewer(modelName: "Sample Model")
+    ModelViewer(modelName: "Sample Model", fieldOfView: 60.0)
 }

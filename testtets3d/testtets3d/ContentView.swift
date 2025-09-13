@@ -4,13 +4,54 @@ import ModelIO
 import SceneKit.ModelIO
 
 struct ContentView: View {
+    @State private var fieldOfView: Double = 60.0
+    
     var body: some View {
-        ProfessionalModelViewer()
-            .ignoresSafeArea()
+        ZStack {
+            ProfessionalModelViewer(fieldOfView: fieldOfView)
+                .ignoresSafeArea()
+            
+            // Field of View Slider - Fixed overlay at bottom
+            VStack {
+                Spacer()
+                
+                VStack(spacing: 8) {
+                    HStack {
+                        Text("Field of View:")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        Spacer()
+                        Text("\(Int(fieldOfView))°")
+                            .font(.headline)
+                            .foregroundColor(.blue)
+                    }
+                    
+                    Slider(value: $fieldOfView, in: 10...360, step: 1)
+                        .accentColor(.blue)
+                    
+                    HStack {
+                        Text("10°")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                        Spacer()
+                        Text("360°")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                    }
+                }
+                .padding()
+                .background(Color.red.opacity(0.8))
+                .cornerRadius(12)
+                .padding(.horizontal)
+                .padding(.bottom, 20)
+            }
+        }
     }
 }
 
 struct ProfessionalModelViewer: UIViewRepresentable {
+    let fieldOfView: Double
+    
     func makeUIView(context: Context) -> SCNView {
         let sceneView = SCNView()
         
@@ -31,7 +72,26 @@ struct ProfessionalModelViewer: UIViewRepresentable {
     }
     
     func updateUIView(_ uiView: SCNView, context: Context) {
-        // No updates needed
+        // Update camera field of view and adjust position to maintain object size
+        if let cameraNode = uiView.scene?.rootNode.childNodes.first(where: { $0.camera != nil }) {
+            // Store original FOV and distance for calculations
+            let originalFOV: CGFloat = 60.0
+            let originalDistance: Float = 8.0
+            
+            // Update field of view
+            cameraNode.camera?.fieldOfView = CGFloat(fieldOfView)
+            
+            // Calculate new distance to maintain object size - break into steps
+            let originalFOVRadians = originalFOV * .pi / 180.0
+            let newFOVRadians = CGFloat(fieldOfView) * .pi / 180.0
+            let originalTan = tan(originalFOVRadians / 2.0)
+            let newTan = tan(newFOVRadians / 2.0)
+            let ratio = CGFloat(originalDistance) * (originalTan / newTan)
+            let newDistance = Float(ratio)
+            
+            // Update camera position to maintain consistent object size
+            cameraNode.position.z = newDistance
+        }
     }
     
     private func setupSceneView(_ sceneView: SCNView) {
@@ -301,10 +361,21 @@ struct ProfessionalModelViewer: UIViewRepresentable {
         // Professional camera setup
         let cameraNode = SCNNode()
         cameraNode.camera = SCNCamera()
-        cameraNode.camera?.fieldOfView = 60
+        
+        // Calculate appropriate distance for the field of view - break into steps
+        let originalFOV: CGFloat = 60.0
+        let originalDistance: Float = 8.0
+        let originalFOVRadians = originalFOV * .pi / 180.0
+        let newFOVRadians = CGFloat(fieldOfView) * .pi / 180.0
+        let originalTan = tan(originalFOVRadians / 2.0)
+        let newTan = tan(newFOVRadians / 2.0)
+        let ratio = CGFloat(originalDistance) * (originalTan / newTan)
+        let calculatedDistance = Float(ratio)
+        
+        cameraNode.camera?.fieldOfView = CGFloat(fieldOfView)
         cameraNode.camera?.zNear = 0.1
         cameraNode.camera?.zFar = 100
-        cameraNode.position = SCNVector3(0, 0, 8)
+        cameraNode.position = SCNVector3(0, 0, calculatedDistance)
         sceneView.scene?.rootNode.addChildNode(cameraNode)
         
         // Setup professional gesture controls
