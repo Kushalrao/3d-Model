@@ -6,15 +6,88 @@ import SceneKit.ModelIO
 struct ContentView: View {
     @State private var fieldOfView: Double = 60.0
     
+    // Axis lock states
+    @State private var lockXAxis: Bool = false
+    @State private var lockYAxis: Bool = false
+    @State private var lockZAxis: Bool = false
+    
     var body: some View {
         ZStack {
-            ProfessionalModelViewer(fieldOfView: fieldOfView)
-                .ignoresSafeArea()
+            ProfessionalModelViewer(
+                fieldOfView: fieldOfView,
+                lockXAxis: lockXAxis,
+                lockYAxis: lockYAxis,
+                lockZAxis: lockZAxis
+            )
+            .ignoresSafeArea()
             
-            // Field of View Slider - Fixed overlay at bottom
+            // Control Panels - Fixed overlay at bottom
             VStack {
                 Spacer()
                 
+                // Axis Lock Controls
+                VStack(spacing: 8) {
+                    HStack {
+                        Text("Axis Locks:")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        Spacer()
+                    }
+                    
+                    HStack(spacing: 20) {
+                        // X-Axis Lock
+                        Button(action: { lockXAxis.toggle() }) {
+                            VStack(spacing: 4) {
+                                Image(systemName: lockXAxis ? "lock.fill" : "lock.open")
+                                    .foregroundColor(lockXAxis ? .red : .white)
+                                Text("X")
+                                    .font(.caption)
+                                    .foregroundColor(lockXAxis ? .red : .white)
+                            }
+                        }
+                        
+                        // Y-Axis Lock
+                        Button(action: { lockYAxis.toggle() }) {
+                            VStack(spacing: 4) {
+                                Image(systemName: lockYAxis ? "lock.fill" : "lock.open")
+                                    .foregroundColor(lockYAxis ? .red : .white)
+                                Text("Y")
+                                    .font(.caption)
+                                    .foregroundColor(lockYAxis ? .red : .white)
+                            }
+                        }
+                        
+                        // Z-Axis Lock
+                        Button(action: { lockZAxis.toggle() }) {
+                            VStack(spacing: 4) {
+                                Image(systemName: lockZAxis ? "lock.fill" : "lock.open")
+                                    .foregroundColor(lockZAxis ? .red : .white)
+                                Text("Z")
+                                    .font(.caption)
+                                    .foregroundColor(lockZAxis ? .red : .white)
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        // Reset All Locks
+                        Button(action: { 
+                            lockXAxis = false
+                            lockYAxis = false
+                            lockZAxis = false
+                        }) {
+                            Text("Reset")
+                                .font(.caption)
+                                .foregroundColor(.blue)
+                        }
+                    }
+                }
+                .padding()
+                .background(Color.black.opacity(0.7))
+                .cornerRadius(12)
+                .padding(.horizontal)
+                
+                // Field of View Slider
                 VStack(spacing: 8) {
                     HStack {
                         Text("Field of View:")
@@ -51,6 +124,9 @@ struct ContentView: View {
 
 struct ProfessionalModelViewer: UIViewRepresentable {
     let fieldOfView: Double
+    let lockXAxis: Bool
+    let lockYAxis: Bool
+    let lockZAxis: Bool
     
     func makeUIView(context: Context) -> SCNView {
         let sceneView = SCNView()
@@ -91,6 +167,11 @@ struct ProfessionalModelViewer: UIViewRepresentable {
             
             // Update camera position to maintain consistent object size
             cameraNode.position.z = newDistance
+            
+            // Update axis locks in coordinator
+            context.coordinator.lockXAxis = lockXAxis
+            context.coordinator.lockYAxis = lockYAxis
+            context.coordinator.lockZAxis = lockZAxis
         }
     }
     
@@ -391,8 +472,11 @@ struct ProfessionalModelViewer: UIViewRepresentable {
         let zoomGesture = UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleZoom(_:)))
         view.addGestureRecognizer(zoomGesture)
         
-        // Store camera reference in coordinator
+        // Store camera reference and axis locks in coordinator
         context.coordinator.cameraNode = cameraNode
+        context.coordinator.lockXAxis = lockXAxis
+        context.coordinator.lockYAxis = lockYAxis
+        context.coordinator.lockZAxis = lockZAxis
     }
     
     func makeCoordinator() -> Coordinator {
@@ -401,6 +485,9 @@ struct ProfessionalModelViewer: UIViewRepresentable {
     
     class Coordinator: NSObject {
         var cameraNode: SCNNode?
+        var lockXAxis: Bool = false
+        var lockYAxis: Bool = false
+        var lockZAxis: Bool = false
         private var lastPanTranslation: CGPoint = .zero
         private var lastScale: CGFloat = 1
         private var orbitRadius: Float = 8.0
@@ -413,19 +500,33 @@ struct ProfessionalModelViewer: UIViewRepresentable {
             let deltaX = Float(translation.x - lastPanTranslation.x) * 0.01
             let deltaY = Float(translation.y - lastPanTranslation.y) * 0.01
             
-            // Professional orbit controls
+            // Professional orbit controls with axis locking
             let currentPosition = camera.position
             let distance = sqrt(currentPosition.x * currentPosition.x + 
                                currentPosition.z * currentPosition.z)
             
-            // Horizontal rotation (around Y axis)
-            let angleX = atan2(currentPosition.z, currentPosition.x) - deltaX
-            let newX = distance * cos(angleX)
-            let newZ = distance * sin(angleX)
+            // Calculate new position components
+            var newX = currentPosition.x
+            var newY = currentPosition.y
+            var newZ = currentPosition.z
             
-            // Vertical rotation (around X axis) - with limits
-            let currentY = currentPosition.y
-            let newY = max(-5, min(5, currentY - deltaY * 2))
+            // Horizontal rotation (around Y axis) - only if X and Z axes are not locked
+            if !lockXAxis && !lockZAxis {
+                let angleX = atan2(currentPosition.z, currentPosition.x) - deltaX
+                newX = distance * cos(angleX)
+                newZ = distance * sin(angleX)
+            } else if !lockXAxis {
+                // Only X movement allowed (horizontal slide)
+                newX = currentPosition.x - deltaX * 2
+            } else if !lockZAxis {
+                // Only Z movement allowed (depth slide)
+                newZ = currentPosition.z - deltaX * 2
+            }
+            
+            // Vertical rotation (around X axis) - only if Y axis is not locked
+            if !lockYAxis {
+                newY = max(-5, min(5, currentPosition.y - deltaY * 2))
+            }
             
             camera.position = SCNVector3(newX, newY, newZ)
             camera.look(at: SCNVector3(0, 0, 0))
